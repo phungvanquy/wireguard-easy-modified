@@ -314,6 +314,15 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
 
     // Create Client
     const id = crypto.randomUUID();
+
+    // If expiresAt is not provided, set it to 1 year from now
+    let finalExpiresAt = expiresAt;
+    if (!finalExpiresAt) {
+      const oneYearFromNow = new Date();
+      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      finalExpiresAt = oneYearFromNow.toISOString();
+    }
+
     const client = {
       id,
       name,
@@ -326,7 +335,7 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
       updatedAt: new Date(),
 
       enabled: true,
-      expiresAt: expiresAt || null,
+      expiresAt: finalExpiresAt,
     };
 
     config.clients[id] = client;
