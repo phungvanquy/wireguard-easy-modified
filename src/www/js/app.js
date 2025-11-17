@@ -59,10 +59,13 @@ new Vue({
     clientDelete: null,
     clientCreate: null,
     clientCreateName: '',
+    clientCreateExpiresAt: null,
     clientEditName: null,
     clientEditNameId: null,
     clientEditAddress: null,
     clientEditAddressId: null,
+    clientEditExpiresAt: null,
+    clientEditExpiresAtId: null,
     qrcode: null,
     clientStats: null,
 
@@ -166,6 +169,27 @@ new Vue({
         hour: 'numeric',
         minute: 'numeric',
       }).format(value);
+    },
+    formatExpiresAt(value) {
+      if (!value) return 'Permanent';
+      const date = new Date(value);
+      return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+      }).format(date);
+    },
+    formatDateTimeLocal(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
     },
     async refresh({
       updateCharts = false,
@@ -274,7 +298,9 @@ new Vue({
       const name = this.clientCreateName;
       if (!name) return;
 
-      this.api.createClient({ name })
+      const expiresAt = this.clientCreateExpiresAt ? new Date(this.clientCreateExpiresAt).toISOString() : null;
+
+      this.api.createClient({ name, expiresAt })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
     },
@@ -300,6 +326,12 @@ new Vue({
     },
     updateClientAddress(client, address) {
       this.api.updateClientAddress({ clientId: client.id, address })
+        .catch((err) => alert(err.message || err.toString()))
+        .finally(() => this.refresh().catch(console.error));
+    },
+    updateClientExpiresAt(client, expiresAt) {
+      const expiresAtISO = expiresAt ? new Date(expiresAt).toISOString() : null;
+      this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: expiresAtISO })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
     },

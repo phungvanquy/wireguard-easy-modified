@@ -100,11 +100,11 @@ class API {
     });
   }
 
-  async createClient({ name }) {
+  async createClient({ name, expiresAt }) {
     return this.call({
       method: 'post',
       path: '/wireguard/client',
-      body: { name },
+      body: { name, expiresAt },
     });
   }
 
@@ -142,6 +142,14 @@ class API {
       method: 'put',
       path: `/wireguard/client/${clientId}/address/`,
       body: { address },
+    });
+  }
+
+  async updateClientExpiresAt({ clientId, expiresAt }) {
+    return this.call({
+      method: 'put',
+      path: `/wireguard/client/${clientId}/expiresAt/`,
+      body: { expiresAt },
     });
   }
 

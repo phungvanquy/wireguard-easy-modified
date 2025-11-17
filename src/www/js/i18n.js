@@ -34,6 +34,10 @@ const messages = { // eslint-disable-line no-unused-vars
     backup: 'Backup',
     titleRestoreConfig: 'Restore your configuration',
     titleBackupConfig: 'Backup your configuration',
+    expiresAt: 'Expires At',
+    expires: 'Expires',
+    optional: 'optional',
+    save: 'Save',
   },
   ua: {
     name: 'Ім`я',
@@ -68,6 +72,10 @@ const messages = { // eslint-disable-line no-unused-vars
     backup: 'Резервна копія',
     titleRestoreConfig: 'Відновити конфігурацію',
     titleBackupConfig: 'Створити резервну копію конфігурації',
+    expiresAt: 'Термін дії до',
+    expires: 'Закінчується',
+    optional: 'необов\'язково',
+    save: 'Зберегти',
   },
   ru: {
     name: 'Имя',

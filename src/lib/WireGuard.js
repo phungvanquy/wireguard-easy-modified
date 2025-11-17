@@ -57,6 +57,16 @@ module.exports = class WireGuard {
         debug('Configuration generated.');
       }
 
+      // Normalize field names: convert 'expiredAt' to 'expiresAt' for backward compatibility
+      if (config.clients) {
+        Object.values(config.clients).forEach((client) => {
+          if ('expiredAt' in client && !('expiresAt' in client)) {
+            client.expiresAt = client.expiredAt;
+            delete client.expiredAt;
+          }
+        });
+      }
+
       return config;
     });
 
@@ -81,6 +91,13 @@ module.exports = class WireGuard {
       // await Util.exec('iptables -A FORWARD -i wg0 -j ACCEPT');
       // await Util.exec('iptables -A FORWARD -o wg0 -j ACCEPT');
       await this.__syncConfig();
+
+      // Start cron job for checking expired clients (only once)
+      if (!this.__cronJobStarted) {
+        debug('Starting cron job for client expiration checking...');
+        this.startCronJob();
+        this.__cronJobStarted = true;
+      }
     }
 
     return this.__configPromise;
@@ -146,6 +163,7 @@ ${client.preSharedKey ? `PresharedKey = ${client.preSharedKey}\n` : ''
       publicKey: client.publicKey,
       createdAt: new Date(client.createdAt),
       updatedAt: new Date(client.updatedAt),
+      expiresAt: client.expiresAt || null,
       allowedIPs: client.allowedIPs,
       downloadableConfig: 'privateKey' in client,
       persistentKeepalive: null,
@@ -264,7 +282,7 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     });
   }
 
-  async createClient({ name }) {
+  async createClient({ name, expiresAt }) {
     if (!name) {
       throw new Error('Missing: Name');
     }
@@ -308,6 +326,7 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
       updatedAt: new Date(),
 
       enabled: true,
+      expiresAt: expiresAt || null,
     };
 
     config.clients[id] = client;
@@ -366,6 +385,15 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     await this.saveConfig();
   }
 
+  async updateClientExpiresAt({ clientId, expiresAt }) {
+    const client = await this.getClient({ clientId });
+
+    client.expiresAt = expiresAt || null;
+    client.updatedAt = new Date();
+
+    await this.saveConfig();
+  }
+
   async __reloadConfig() {
     await this.__buildConfig();
     await this.__syncConfig();
@@ -374,6 +402,17 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
   async restoreConfiguration(config) {
     debug('Starting configuration restore process.');
     const _config = JSON.parse(config);
+
+    // Normalize field names: convert 'expiredAt' to 'expiresAt' for backward compatibility
+    if (_config.clients) {
+      Object.values(_config.clients).forEach((client) => {
+        if ('expiredAt' in client && !('expiresAt' in client)) {
+          client.expiresAt = client.expiredAt;
+          delete client.expiredAt;
+        }
+      });
+    }
+
     await this.__saveConfig(_config);
     await this.__reloadConfig();
     debug('Configuration restore process completed.');
@@ -385,6 +424,45 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     const backup = JSON.stringify(config, null, 2);
     debug('Configuration backup completed.');
     return backup;
+  }
+
+  // Cron job to check for expired clients
+  async cronJob() {
+    try {
+      const config = await this.getConfig();
+      const clients = Object.values(config.clients);
+      let needsSave = false;
+
+      // Check for expired clients
+      for (const client of clients) {
+        if (client.enabled !== true) continue;
+        if (
+          client.expiresAt !== null &&
+          new Date() > new Date(client.expiresAt)
+        ) {
+          debug(`Client ${client.id} (${client.name}) expired.`);
+          client.enabled = false;
+          client.updatedAt = new Date();
+          needsSave = true;
+        }
+      }
+
+      if (needsSave) {
+        await this.saveConfig();
+      }
+    } catch (err) {
+      debug('Cron job failed:', err);
+    }
+  }
+
+  // Start cron job to check for expired clients every minute
+  startCronJob() {
+    setInterval(() => {
+      this.cronJob().catch((err) => {
+        debug('Cron job failed:', err);
+      });
+    }, 60 * 1000); // Run every minute
+    debug('Cron job started - checking for expired clients every 60 seconds.');
   }
 
   // Shutdown wireguard
