@@ -213,9 +213,9 @@ ${client.preSharedKey ? `PresharedKey = ${client.preSharedKey}\n` : ''
     const enabled = clients.filter((c) => c.enabled).length;
     const disabled = clients.filter((c) => c.enabled === false).length;
 
-    // Active = has recent handshake (within last 10 minutes)
+    // Active = has recent handshake (within last 2 minutes)
     const now = new Date();
-    const activeThreshold = 10 * 60 * 1000; // 10 minutes in milliseconds
+    const activeThreshold = 2 * 60 * 1000; // 2 minutes in milliseconds
     const active = clients.filter((c) => {
       if (!c.latestHandshakeAt) return false;
       return (now - new Date(c.latestHandshakeAt)) < activeThreshold;
@@ -234,7 +234,7 @@ ${client.preSharedKey ? `PresharedKey = ${client.preSharedKey}\n` : ''
     return Object.keys(config.clients).length;
   }
 
-  async getActiveClients(thresholdMinutes = 10) {
+  async getActiveClients(thresholdMinutes = 2) {
     const clients = await this.getClients();
     const now = new Date();
     const threshold = thresholdMinutes * 60 * 1000;
