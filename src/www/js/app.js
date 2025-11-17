@@ -330,7 +330,9 @@ new Vue({
         .finally(() => this.refresh().catch(console.error));
     },
     updateClientExpiresAt(client, expiresAt) {
-      const expiresAtISO = expiresAt ? new Date(expiresAt).toISOString() : null;
+      // If expiresAt is empty string, send 'PERMANENT' to indicate permanent (null)
+      // Otherwise convert to ISO string
+      const expiresAtISO = expiresAt ? new Date(expiresAt).toISOString() : 'PERMANENT';
       this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: expiresAtISO })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));

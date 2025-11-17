@@ -315,13 +315,10 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     // Create Client
     const id = crypto.randomUUID();
 
-    // If expiresAt is not provided, set it to 1 year from now
-    let finalExpiresAt = expiresAt;
-    if (!finalExpiresAt) {
-      const oneYearFromNow = new Date();
-      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-      finalExpiresAt = oneYearFromNow.toISOString();
-    }
+    // Handle expiration:
+    // - If expiresAt is not provided (null/undefined/empty), set it to null (permanent)
+    // - Otherwise, use the provided value
+    const finalExpiresAt = expiresAt || null;
 
     const client = {
       id,
@@ -397,7 +394,12 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
   async updateClientExpiresAt({ clientId, expiresAt }) {
     const client = await this.getClient({ clientId });
 
-    client.expiresAt = expiresAt || null;
+    // Handle special 'PERMANENT' marker to set expiration to null
+    if (expiresAt === 'PERMANENT') {
+      client.expiresAt = null;
+    } else {
+      client.expiresAt = expiresAt || null;
+    }
     client.updatedAt = new Date();
 
     await this.saveConfig();
