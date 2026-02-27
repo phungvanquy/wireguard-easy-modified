@@ -118,7 +118,7 @@
                 <span class="max-md:hidden text-sm">{{$t("backup")}}</span>
               </a>
               <!-- New client -->
-              <button @click="clientCreate = true; clientCreateName = ''; clientCreateExpiresAt = null;"
+              <button @click="clientCreate = true; clientCreateName = ''; clientCreateExpiresAt = null; clientCreateTrafficQuota = null;"
                 class="hover:bg-red-800 hover:border-red-800 hover:text-white text-gray-700 dark:text-neutral-200 max-md:border-l-0 border-2 border-gray-100 dark:border-neutral-600 py-2 px-4 rounded-r-full md:rounded inline-flex items-center transition">
                 <svg class="w-4 md:mr-2" inline xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                   stroke="currentColor">
@@ -289,6 +289,62 @@
                           </button>
                         </div>
                       </div>
+
+                      <!-- Traffic Quota (only shown when feature is enabled) -->
+                      <div v-if="trafficQuotaEnabled" class="text-xs mt-1 group">
+                        <!-- Show quota status -->
+                        <span v-if="client.trafficQuota" :class="client.trafficUsed >= client.trafficQuota ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline align-middle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          {{$t("trafficQuota")}}: {{bytes(client.trafficUsed)}} / {{bytes(client.trafficQuota)}}
+                          <span class="text-gray-400 dark:text-neutral-500">({{getTrafficPercentage(client)}}%)</span>
+                        </span>
+                        <span v-else class="text-green-600 dark:text-green-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline align-middle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          {{$t("trafficQuota")}}: {{$t("unlimited")}}
+                          <span v-if="client.trafficUsed > 0" class="text-gray-400 dark:text-neutral-500">({{bytes(client.trafficUsed)}} {{$t("trafficUsed").toLowerCase()}})</span>
+                        </span>
+                        <!-- Edit button -->
+                        <span v-show="clientEditTrafficQuotaId !== client.id"
+                          @click="clientEditTrafficQuota = trafficQuotaToGB(client.trafficQuota); clientEditTrafficQuotaId = client.id;"
+                          class="cursor-pointer opacity-50 hover:opacity-100 transition-opacity ml-1">
+                          <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3 inline align-middle" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </span>
+                        <!-- Reset traffic button -->
+                        <span v-if="client.trafficUsed > 0"
+                          @click="resetClientTraffic(client)"
+                          class="cursor-pointer opacity-50 hover:opacity-100 transition-opacity ml-1" :title="$t('resetTraffic')">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline align-middle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </span>
+                        <!-- Edit Input -->
+                        <div v-show="clientEditTrafficQuotaId === client.id" class="mt-1">
+                          <input v-model="clientEditTrafficQuota"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            :placeholder="$t('quotaHint')"
+                            class="rounded px-2 py-1 border-2 dark:bg-neutral-700 border-gray-100 dark:border-neutral-600 focus:border-gray-200 dark:focus:border-neutral-500 outline-none text-xs w-20" />
+                          <span class="text-gray-500 dark:text-neutral-400 ml-1">GB</span>
+                          <button @click="updateClientTrafficQuota(client, clientEditTrafficQuota); clientEditTrafficQuota = null; clientEditTrafficQuotaId = null;"
+                            class="ml-1 px-2 py-1 bg-red-800 text-white rounded text-xs hover:bg-red-700">
+                            {{$t("save")}}
+                          </button>
+                          <button @click="clientEditTrafficQuota = null; clientEditTrafficQuotaId = null;"
+                            class="ml-1 px-2 py-1 bg-gray-300 dark:bg-neutral-500 text-gray-700 dark:text-neutral-200 rounded text-xs hover:bg-gray-400 dark:hover:bg-neutral-600">
+                            {{$t("cancel")}}
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     <!-- Info -->
@@ -408,7 +464,7 @@
             <div v-if="clients && clients.length === 0">
               <p class="text-center m-10 text-gray-400 dark:text-neutral-400 text-sm">
                 {{$t("noClients")}}<br /><br />
-                <button @click="clientCreate = true; clientCreateName = ''; clientCreateExpiresAt = null;"
+                <button @click="clientCreate = true; clientCreateName = ''; clientCreateExpiresAt = null; clientCreateTrafficQuota = null;"
                   class="bg-red-800 hover:bg-red-700 text-white border-2 border-none py-2 px-4 rounded inline-flex items-center transition">
                   <svg class="w-4 mr-2" inline xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
@@ -499,11 +555,17 @@
                           class="rounded p-2 border-2 dark:bg-neutral-700 dark:text-neutral-200 border-gray-100 dark:border-neutral-600 focus:border-gray-200 focus:dark:border-neutral-500 dark:placeholder:text-neutral-400 outline-none w-full"
                           type="text" v-model.trim="clientCreateName" :placeholder="$t('name')" />
                       </p>
-                      <p class="text-sm text-gray-500">
+                      <p class="text-sm text-gray-500 mb-3">
                         <label class="block text-xs text-gray-600 dark:text-neutral-400 mb-1">{{$t("expiresAt")}} ({{$t("optional")}} - default: {{$t("permanent").toLowerCase()}})</label>
                         <input
                           class="rounded p-2 border-2 dark:bg-neutral-700 dark:text-neutral-200 border-gray-100 dark:border-neutral-600 focus:border-gray-200 focus:dark:border-neutral-500 dark:placeholder:text-neutral-400 outline-none w-full"
                           type="datetime-local" v-model="clientCreateExpiresAt" />
+                      </p>
+                      <p v-if="trafficQuotaEnabled" class="text-sm text-gray-500">
+                        <label class="block text-xs text-gray-600 dark:text-neutral-400 mb-1">{{$t("trafficQuotaGB")}} ({{$t("optional")}} - {{$t("quotaHint").toLowerCase()}})</label>
+                        <input
+                          class="rounded p-2 border-2 dark:bg-neutral-700 dark:text-neutral-200 border-gray-100 dark:border-neutral-600 focus:border-gray-200 focus:dark:border-neutral-500 dark:placeholder:text-neutral-400 outline-none w-full"
+                          type="number" step="0.1" min="0" v-model="clientCreateTrafficQuota" placeholder="e.g. 10" />
                       </p>
                     </div>
                   </div>

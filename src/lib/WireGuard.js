@@ -23,6 +23,8 @@ const {
   WG_POST_UP,
   WG_PRE_DOWN,
   WG_POST_DOWN,
+  ENABLE_TRAFFIC_QUOTA,
+  DEFAULT_TRAFFIC_QUOTA,
 } = require('../config');
 
 module.exports = class WireGuard {
@@ -170,6 +172,10 @@ ${client.preSharedKey ? `PresharedKey = ${client.preSharedKey}\n` : ''
       latestHandshakeAt: null,
       transferRx: null,
       transferTx: null,
+      // Traffic quota fields (only relevant when ENABLE_TRAFFIC_QUOTA is true)
+      trafficQuota: client.trafficQuota || null,
+      trafficUsed: client.trafficUsed || 0,
+      quotaResetAt: client.quotaResetAt || null,
     }));
 
     // Loop WireGuard status
@@ -282,7 +288,7 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     });
   }
 
-  async createClient({ name, expiresAt }) {
+  async createClient({ name, expiresAt, trafficQuota }) {
     if (!name) {
       throw new Error('Missing: Name');
     }
@@ -320,6 +326,11 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     // - Otherwise, use the provided value
     const finalExpiresAt = expiresAt || null;
 
+    // Handle traffic quota:
+    // - If trafficQuota is provided, use it
+    // - Otherwise, use DEFAULT_TRAFFIC_QUOTA (0 = unlimited)
+    const finalTrafficQuota = trafficQuota !== undefined ? trafficQuota : DEFAULT_TRAFFIC_QUOTA;
+
     const client = {
       id,
       name,
@@ -333,6 +344,11 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
 
       enabled: true,
       expiresAt: finalExpiresAt,
+
+      // Traffic quota fields (only used when ENABLE_TRAFFIC_QUOTA is true)
+      trafficQuota: finalTrafficQuota || null, // null or 0 = unlimited
+      trafficUsed: 0,
+      quotaResetAt: null,
     };
 
     config.clients[id] = client;
@@ -405,6 +421,35 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     await this.saveConfig();
   }
 
+  async updateClientTrafficQuota({ clientId, trafficQuota }) {
+    const client = await this.getClient({ clientId });
+
+    // Handle special 'UNLIMITED' marker to set quota to null (unlimited)
+    if (trafficQuota === 'UNLIMITED' || trafficQuota === 0) {
+      client.trafficQuota = null;
+    } else {
+      client.trafficQuota = trafficQuota || null;
+    }
+    client.updatedAt = new Date();
+
+    await this.saveConfig();
+  }
+
+  async resetClientTrafficUsage({ clientId }) {
+    const client = await this.getClient({ clientId });
+
+    client.trafficUsed = 0;
+    client.quotaResetAt = new Date();
+    client.updatedAt = new Date();
+
+    // Re-enable client if it was disabled due to quota
+    if (!client.enabled && client.trafficQuota) {
+      client.enabled = true;
+    }
+
+    await this.saveConfig();
+  }
+
   async __reloadConfig() {
     await this.__buildConfig();
     await this.__syncConfig();
@@ -437,15 +482,15 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
     return backup;
   }
 
-  // Cron job to check for expired clients
+  // Cron job to check for expired clients and traffic quotas
   async cronJob() {
     try {
       const config = await this.getConfig();
-      const clients = Object.values(config.clients);
+      const configClients = Object.values(config.clients);
       let needsSave = false;
 
       // Check for expired clients
-      for (const client of clients) {
+      for (const client of configClients) {
         if (client.enabled !== true) continue;
         if (
           client.expiresAt !== null &&
@@ -455,6 +500,59 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
           client.enabled = false;
           client.updatedAt = new Date();
           needsSave = true;
+        }
+      }
+
+      // Check traffic quotas (only if feature is enabled)
+      if (ENABLE_TRAFFIC_QUOTA) {
+        // Get current traffic stats from WireGuard
+        const dump = await Util.exec('wg show wg0 dump', { log: false });
+        const trafficStats = {};
+
+        dump
+          .trim()
+          .split('\n')
+          .slice(1)
+          .forEach((line) => {
+            const [publicKey, , , , , transferRx, transferTx] = line.split('\t');
+            trafficStats[publicKey] = {
+              rx: Number(transferRx) || 0,
+              tx: Number(transferTx) || 0,
+            };
+          });
+
+        for (const client of configClients) {
+          if (client.enabled !== true) continue;
+          if (!client.trafficQuota) continue; // Skip if no quota set (unlimited)
+
+          const stats = trafficStats[client.publicKey];
+          if (!stats) continue;
+
+          const totalTraffic = stats.rx + stats.tx;
+
+          // Update traffic used (WireGuard resets on restart, so we track cumulative)
+          if (totalTraffic > 0) {
+            // Store the last known traffic to detect resets
+            const lastKnownTraffic = client.lastKnownTraffic || 0;
+
+            if (totalTraffic >= lastKnownTraffic) {
+              // Normal case: traffic increased
+              client.trafficUsed = (client.trafficUsed || 0) + (totalTraffic - lastKnownTraffic);
+            } else {
+              // WireGuard was restarted, traffic counter reset
+              client.trafficUsed = (client.trafficUsed || 0) + totalTraffic;
+            }
+            client.lastKnownTraffic = totalTraffic;
+            needsSave = true;
+          }
+
+          // Check if quota exceeded
+          if (client.trafficUsed >= client.trafficQuota) {
+            debug(`Client ${client.id} (${client.name}) exceeded traffic quota: ${client.trafficUsed}/${client.trafficQuota} bytes.`);
+            client.enabled = false;
+            client.updatedAt = new Date();
+            needsSave = true;
+          }
         }
       }
 

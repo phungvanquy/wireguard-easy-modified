@@ -113,6 +113,8 @@ These options can be configured by setting environment variables using `-e KEY="
 | `LANG` | `en` | `de` | Web UI language (Supports: en, ua, ru, tr, no, pl, fr, de, ca, es, ko, vi, nl, is, pt, chs, cht, it, th, hi).                                        |
 | `UI_TRAFFIC_STATS` | `false` | `true` | Enable detailed RX / TX client stats in Web UI                                                                                                       |
 | `UI_CHART_TYPE` | `0` | `1` | UI_CHART_TYPE=0 # Charts disabled, UI_CHART_TYPE=1 # Line chart, UI_CHART_TYPE=2 # Area chart, UI_CHART_TYPE=3 # Bar chart                           |
+| `ENABLE_TRAFFIC_QUOTA` | `false` | `true` | Enable traffic quota limiting per client. When enabled, clients can have a traffic limit and will be disabled when exceeded.                         |
+| `DEFAULT_TRAFFIC_QUOTA` | `0` | `10737418240` | Default traffic quota in bytes for new clients (0 = unlimited). Examples: 1073741824 (1GB), 10737418240 (10GB), 107374182400 (100GB).               |
 
 > If you change `WG_PORT`, make sure to also change the exposed port.
 

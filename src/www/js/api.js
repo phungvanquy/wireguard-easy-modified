@@ -100,11 +100,11 @@ class API {
     });
   }
 
-  async createClient({ name, expiresAt }) {
+  async createClient({ name, expiresAt, trafficQuota }) {
     return this.call({
       method: 'post',
       path: '/wireguard/client',
-      body: { name, expiresAt },
+      body: { name, expiresAt, trafficQuota },
     });
   }
 
@@ -150,6 +150,28 @@ class API {
       method: 'put',
       path: `/wireguard/client/${clientId}/expiresAt/`,
       body: { expiresAt },
+    });
+  }
+
+  async getTrafficQuotaEnabled() {
+    return this.call({
+      method: 'get',
+      path: '/traffic-quota-enabled',
+    });
+  }
+
+  async updateClientTrafficQuota({ clientId, trafficQuota }) {
+    return this.call({
+      method: 'put',
+      path: `/wireguard/client/${clientId}/trafficQuota`,
+      body: { trafficQuota },
+    });
+  }
+
+  async resetClientTraffic({ clientId }) {
+    return this.call({
+      method: 'post',
+      path: `/wireguard/client/${clientId}/resetTraffic`,
     });
   }
 

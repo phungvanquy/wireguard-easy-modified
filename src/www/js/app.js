@@ -66,6 +66,10 @@ new Vue({
     clientEditAddressId: null,
     clientEditExpiresAt: null,
     clientEditExpiresAtId: null,
+    clientEditTrafficQuota: null,
+    clientEditTrafficQuotaId: null,
+    clientCreateTrafficQuota: null,
+    trafficQuotaEnabled: false,
     qrcode: null,
     clientStats: null,
 
@@ -300,10 +304,17 @@ new Vue({
 
       const expiresAt = this.clientCreateExpiresAt ? new Date(this.clientCreateExpiresAt).toISOString() : null;
 
-      this.api.createClient({ name, expiresAt })
+      // Convert GB to bytes for traffic quota
+      let trafficQuota = null;
+      if (this.clientCreateTrafficQuota && this.clientCreateTrafficQuota !== '') {
+        trafficQuota = Math.round(parseFloat(this.clientCreateTrafficQuota) * 1024 * 1024 * 1024);
+      }
+
+      this.api.createClient({ name, expiresAt, trafficQuota })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
     },
+    bytes,
     deleteClient(client) {
       this.api.deleteClient({ clientId: client.id })
         .catch((err) => alert(err.message || err.toString()))
@@ -336,6 +347,36 @@ new Vue({
       this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: expiresAtISO })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
+    },
+    updateClientTrafficQuota(client, trafficQuotaGB) {
+      // Convert GB to bytes, or 'UNLIMITED' if empty/0
+      let trafficQuota;
+      if (!trafficQuotaGB || trafficQuotaGB === '' || trafficQuotaGB === '0') {
+        trafficQuota = 'UNLIMITED';
+      } else {
+        trafficQuota = Math.round(parseFloat(trafficQuotaGB) * 1024 * 1024 * 1024);
+      }
+      this.api.updateClientTrafficQuota({ clientId: client.id, trafficQuota })
+        .catch((err) => alert(err.message || err.toString()))
+        .finally(() => this.refresh().catch(console.error));
+    },
+    resetClientTraffic(client) {
+      if (!confirm(this.$t('confirmResetTraffic'))) return;
+      this.api.resetClientTraffic({ clientId: client.id })
+        .catch((err) => alert(err.message || err.toString()))
+        .finally(() => this.refresh().catch(console.error));
+    },
+    formatTrafficQuota(bytes) {
+      if (!bytes) return this.$t('unlimited');
+      return this.bytes(bytes);
+    },
+    trafficQuotaToGB(bytes) {
+      if (!bytes) return '';
+      return (bytes / (1024 * 1024 * 1024)).toFixed(2);
+    },
+    getTrafficPercentage(client) {
+      if (!client.trafficQuota) return 0;
+      return Math.min(100, Math.round((client.trafficUsed / client.trafficQuota) * 100));
     },
     restoreConfig(e) {
       e.preventDefault();
@@ -420,6 +461,14 @@ new Vue({
       })
       .catch(() => {
         this.uiChartType = 0;
+      });
+
+    this.api.getTrafficQuotaEnabled()
+      .then((res) => {
+        this.trafficQuotaEnabled = res;
+      })
+      .catch(() => {
+        this.trafficQuotaEnabled = false;
       });
 
     Promise.resolve().then(async () => {

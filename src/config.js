@@ -39,3 +39,10 @@ iptables -D FORWARD -o wg0 -j ACCEPT;
 module.exports.LANG = process.env.LANG || 'en';
 module.exports.UI_TRAFFIC_STATS = process.env.UI_TRAFFIC_STATS || 'false';
 module.exports.UI_CHART_TYPE = process.env.UI_CHART_TYPE || 0;
+
+// Traffic quota settings
+// ENABLE_TRAFFIC_QUOTA: Enable/disable traffic quota feature (default: false)
+module.exports.ENABLE_TRAFFIC_QUOTA = process.env.ENABLE_TRAFFIC_QUOTA === 'true';
+// DEFAULT_TRAFFIC_QUOTA: Default quota in bytes for new clients (default: 0 = unlimited)
+// Examples: 1073741824 (1GB), 10737418240 (10GB), 107374182400 (100GB)
+module.exports.DEFAULT_TRAFFIC_QUOTA = parseInt(process.env.DEFAULT_TRAFFIC_QUOTA, 10) || 0;

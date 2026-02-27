@@ -33,6 +33,7 @@ const {
   LANG,
   UI_TRAFFIC_STATS,
   UI_CHART_TYPE,
+  ENABLE_TRAFFIC_QUOTA,
 } = require('../config');
 
 const requiresPassword = !!PASSWORD_HASH;
@@ -91,6 +92,11 @@ module.exports = class Server {
       .get('/api/ui-chart-type', defineEventHandler((event) => {
         setHeader(event, 'Content-Type', 'application/json');
         return `"${UI_CHART_TYPE}"`;
+      }))
+
+      .get('/api/traffic-quota-enabled', defineEventHandler((event) => {
+        setHeader(event, 'Content-Type', 'application/json');
+        return ENABLE_TRAFFIC_QUOTA;
       }))
 
       // Authentication
@@ -195,8 +201,8 @@ module.exports = class Server {
         return config;
       }))
       .post('/api/wireguard/client', defineEventHandler(async (event) => {
-        const { name, expiresAt } = await readBody(event);
-        await WireGuard.createClient({ name, expiresAt });
+        const { name, expiresAt, trafficQuota } = await readBody(event);
+        await WireGuard.createClient({ name, expiresAt, trafficQuota });
         return { success: true };
       }))
       .delete('/api/wireguard/client/:clientId', defineEventHandler(async (event) => {
@@ -245,6 +251,23 @@ module.exports = class Server {
         }
         const { expiresAt } = await readBody(event);
         await WireGuard.updateClientExpiresAt({ clientId, expiresAt });
+        return { success: true };
+      }))
+      .put('/api/wireguard/client/:clientId/trafficQuota', defineEventHandler(async (event) => {
+        const clientId = getRouterParam(event, 'clientId');
+        if (clientId === '__proto__' || clientId === 'constructor' || clientId === 'prototype') {
+          throw createError({ status: 403 });
+        }
+        const { trafficQuota } = await readBody(event);
+        await WireGuard.updateClientTrafficQuota({ clientId, trafficQuota });
+        return { success: true };
+      }))
+      .post('/api/wireguard/client/:clientId/resetTraffic', defineEventHandler(async (event) => {
+        const clientId = getRouterParam(event, 'clientId');
+        if (clientId === '__proto__' || clientId === 'constructor' || clientId === 'prototype') {
+          throw createError({ status: 403 });
+        }
+        await WireGuard.resetClientTrafficUsage({ clientId });
         return { success: true };
       }));
 

@@ -39,6 +39,15 @@ const messages = { // eslint-disable-line no-unused-vars
     permanent: 'Permanent',
     optional: 'optional',
     save: 'Save',
+    // Traffic quota translations
+    trafficQuota: 'Traffic Quota',
+    trafficUsed: 'Traffic Used',
+    unlimited: 'Unlimited',
+    quotaExceeded: 'Quota Exceeded',
+    resetTraffic: 'Reset Traffic',
+    confirmResetTraffic: 'Are you sure you want to reset the traffic usage for this client?',
+    trafficQuotaGB: 'Traffic Quota (GB)',
+    quotaHint: 'Leave empty for unlimited',
   },
   ua: {
     name: 'Ім`я',

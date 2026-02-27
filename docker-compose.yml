@@ -9,7 +9,7 @@ services:
       - LANG=en
       # ⚠️ Required:
       # Change this to your host's public address
-      - WG_HOST=192.168.0.101
+      - WG_HOST=192.168.56.2
 
       # Optional:
       # - PASSWORD_HASH=$$2y$$10$$hBCoykrB95WSzuV4fafBzOHWKu9sbyVa34GJr8VV5R/pIelfEMYyG # (needs double $$, hash of 'foobar123'; see "How_to_generate_an_bcrypt_hash.md" for generate the hash)
@@ -27,6 +27,10 @@ services:
       # - WG_POST_DOWN=echo "Post Down" > /etc/wireguard/post-down.txt
       # - UI_TRAFFIC_STATS=true
       # - UI_CHART_TYPE=0 # (0 Charts disabled, 1 # Line chart, 2 # Area chart, 3 # Bar chart)
+
+      # Traffic Quota Settings (for testing)
+      - ENABLE_TRAFFIC_QUOTA=true
+      - DEFAULT_TRAFFIC_QUOTA=1073741824  # 1GB default quota
 
     image: wg-easy-custom:latest
     container_name: wg-easy
