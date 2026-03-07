@@ -183,4 +183,26 @@ class API {
     });
   }
 
+  async getTelegramStatus() {
+    return this.call({
+      method: 'get',
+      path: '/telegram/status',
+    });
+  }
+
+  async testTelegramConnection() {
+    return this.call({
+      method: 'post',
+      path: '/telegram/test-connection',
+    });
+  }
+
+  async sendTelegramBackup(force = false) {
+    return this.call({
+      method: 'post',
+      path: '/telegram/send-backup',
+      body: { force },
+    });
+  }
+
 }

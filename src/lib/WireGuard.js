@@ -29,80 +29,76 @@ const {
 
 module.exports = class WireGuard {
 
-  async __buildConfig() {
-    this.__configPromise = Promise.resolve().then(async () => {
-      if (!WG_HOST) {
-        throw new Error('WG_HOST Environment Variable Not Set!');
-      }
-
-      debug('Loading configuration...');
-      let config;
-      try {
-        config = await fs.readFile(path.join(WG_PATH, 'wg0.json'), 'utf8');
-        config = JSON.parse(config);
-        debug('Configuration loaded.');
-      } catch (err) {
-        const privateKey = await Util.exec('wg genkey');
-        const publicKey = await Util.exec(`echo ${privateKey} | wg pubkey`, {
-          log: 'echo ***hidden*** | wg pubkey',
-        });
-        const address = WG_DEFAULT_ADDRESS.replace('x', '1');
-
-        config = {
-          server: {
-            privateKey,
-            publicKey,
-            address,
-          },
-          clients: {},
-        };
-        debug('Configuration generated.');
-      }
-
-      // Normalize field names: convert 'expiredAt' to 'expiresAt' for backward compatibility
-      if (config.clients) {
-        Object.values(config.clients).forEach((client) => {
-          if ('expiredAt' in client && !('expiresAt' in client)) {
-            client.expiresAt = client.expiredAt;
-            delete client.expiredAt;
-          }
-        });
-      }
-
-      return config;
-    });
-
-    return this.__configPromise;
-  }
-
   async getConfig() {
-    if (!this.__configPromise) {
-      const config = await this.__buildConfig();
-
-      await this.__saveConfig(config);
-      await Util.exec('wg-quick down wg0').catch(() => {});
-      await Util.exec('wg-quick up wg0').catch((err) => {
-        if (err && err.message && err.message.includes('Cannot find device "wg0"')) {
-          throw new Error('WireGuard exited with the error: Cannot find device "wg0"\nThis usually means that your host\'s kernel does not support WireGuard!');
-        }
-
-        throw err;
-      });
-      // await Util.exec(`iptables -t nat -A POSTROUTING -s ${WG_DEFAULT_ADDRESS.replace('x', '0')}/24 -o ' + WG_DEVICE + ' -j MASQUERADE`);
-      // await Util.exec('iptables -A INPUT -p udp -m udp --dport 51820 -j ACCEPT');
-      // await Util.exec('iptables -A FORWARD -i wg0 -j ACCEPT');
-      // await Util.exec('iptables -A FORWARD -o wg0 -j ACCEPT');
-      await this.__syncConfig();
-
-      // Start cron job for checking expired clients (only once)
-      if (!this.__cronJobStarted) {
-        debug('Starting cron job for client expiration checking...');
-        this.startCronJob();
-        this.__cronJobStarted = true;
-      }
+    if (!this.__initPromise) {
+      // Wrap the entire init (build config + wg-quick up + sync) in a single
+      // promise so concurrent callers wait for the full startup to finish.
+      this.__initPromise = this.__initialize();
     }
 
-    return this.__configPromise;
+    return this.__initPromise;
+  }
+
+  async __initialize() {
+    if (!WG_HOST) {
+      throw new Error('WG_HOST Environment Variable Not Set!');
+    }
+
+    debug('Loading configuration...');
+    let config;
+    try {
+      config = await fs.readFile(path.join(WG_PATH, 'wg0.json'), 'utf8');
+      config = JSON.parse(config);
+      debug('Configuration loaded.');
+    } catch (err) {
+      const privateKey = await Util.exec('wg genkey');
+      const publicKey = await Util.exec(`echo ${privateKey} | wg pubkey`, {
+        log: 'echo ***hidden*** | wg pubkey',
+      });
+      const address = WG_DEFAULT_ADDRESS.replace('x', '1');
+
+      config = {
+        server: {
+          privateKey,
+          publicKey,
+          address,
+        },
+        clients: {},
+      };
+      debug('Configuration generated.');
+    }
+
+    // Normalize field names: convert 'expiredAt' to 'expiresAt' for backward compatibility
+    if (config.clients) {
+      Object.values(config.clients).forEach((client) => {
+        if ('expiredAt' in client && !('expiresAt' in client)) {
+          client.expiresAt = client.expiredAt;
+          delete client.expiredAt;
+        }
+      });
+    }
+
+    this.__config = config;
+
+    await this.__saveConfig(config);
+    await Util.exec('wg-quick down wg0').catch(() => {});
+    await Util.exec('wg-quick up wg0').catch((err) => {
+      if (err && err.message && err.message.includes('Cannot find device "wg0"')) {
+        throw new Error('WireGuard exited with the error: Cannot find device "wg0"\nThis usually means that your host\'s kernel does not support WireGuard!');
+      }
+
+      throw err;
+    });
+    await this.__syncConfig();
+
+    // Start cron job for checking expired clients (only once)
+    if (!this.__cronJobStarted) {
+      debug('Starting cron job for client expiration checking...');
+      this.startCronJob();
+      this.__cronJobStarted = true;
+    }
+
+    return config;
   }
 
   async saveConfig() {
@@ -178,10 +174,23 @@ ${client.preSharedKey ? `PresharedKey = ${client.preSharedKey}\n` : ''
       quotaResetAt: client.quotaResetAt || null,
     }));
 
-    // Loop WireGuard status
-    const dump = await Util.exec('wg show wg0 dump', {
-      log: false,
-    });
+    // Loop WireGuard status — retry up to 3 times if interface isn't ready yet
+    let dump = '';
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        dump = await Util.exec('wg show wg0 dump', { log: false });
+        break;
+      } catch (err) {
+        if (attempt < 3 && err.message && err.message.includes('No such device')) {
+          debug(`wg show failed (attempt ${attempt}/3), retrying in ${attempt}s...`);
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+        } else {
+          debug('wg show wg0 dump failed:', err.message);
+          return clients; // Return clients without live stats
+        }
+      }
+    }
+
     dump
       .trim()
       .split('\n')
@@ -451,7 +460,23 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
   }
 
   async __reloadConfig() {
-    await this.__buildConfig();
+    // Re-read config from disk
+    const raw = await fs.readFile(path.join(WG_PATH, 'wg0.json'), 'utf8');
+    const config = JSON.parse(raw);
+
+    // Normalize field names
+    if (config.clients) {
+      Object.values(config.clients).forEach((client) => {
+        if ('expiredAt' in client && !('expiresAt' in client)) {
+          client.expiresAt = client.expiredAt;
+          delete client.expiredAt;
+        }
+      });
+    }
+
+    this.__config = config;
+    // Update the init promise so getConfig() returns the new config
+    this.__initPromise = Promise.resolve(config);
     await this.__syncConfig();
   }
 
@@ -506,52 +531,61 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
       // Check traffic quotas (only if feature is enabled)
       if (ENABLE_TRAFFIC_QUOTA) {
         // Get current traffic stats from WireGuard
-        const dump = await Util.exec('wg show wg0 dump', { log: false });
-        const trafficStats = {};
+        let dump;
+        try {
+          dump = await Util.exec('wg show wg0 dump', { log: false });
+        } catch (err) {
+          debug('Cron: wg show failed, skipping traffic quota check:', err.message);
+          dump = null;
+        }
 
-        dump
-          .trim()
-          .split('\n')
-          .slice(1)
-          .forEach((line) => {
-            const [publicKey, , , , , transferRx, transferTx] = line.split('\t');
-            trafficStats[publicKey] = {
-              rx: Number(transferRx) || 0,
-              tx: Number(transferTx) || 0,
-            };
-          });
+        if (dump) {
+          const trafficStats = {};
 
-        for (const client of configClients) {
-          if (client.enabled !== true) continue;
-          if (!client.trafficQuota) continue; // Skip if no quota set (unlimited)
+          dump
+            .trim()
+            .split('\n')
+            .slice(1)
+            .forEach((line) => {
+              const [publicKey, , , , , transferRx, transferTx] = line.split('\t');
+              trafficStats[publicKey] = {
+                rx: Number(transferRx) || 0,
+                tx: Number(transferTx) || 0,
+              };
+            });
 
-          const stats = trafficStats[client.publicKey];
-          if (!stats) continue;
+          for (const client of configClients) {
+            if (client.enabled !== true) continue;
+            if (!client.trafficQuota) continue; // Skip if no quota set (unlimited)
 
-          const totalTraffic = stats.rx + stats.tx;
+            const stats = trafficStats[client.publicKey];
+            if (!stats) continue;
 
-          // Update traffic used (WireGuard resets on restart, so we track cumulative)
-          if (totalTraffic > 0) {
-            // Store the last known traffic to detect resets
-            const lastKnownTraffic = client.lastKnownTraffic || 0;
+            const totalTraffic = stats.rx + stats.tx;
 
-            if (totalTraffic >= lastKnownTraffic) {
-              // Normal case: traffic increased
-              client.trafficUsed = (client.trafficUsed || 0) + (totalTraffic - lastKnownTraffic);
-            } else {
-              // WireGuard was restarted, traffic counter reset
-              client.trafficUsed = (client.trafficUsed || 0) + totalTraffic;
+            // Update traffic used (WireGuard resets on restart, so we track cumulative)
+            if (totalTraffic > 0) {
+              // Store the last known traffic to detect resets
+              const lastKnownTraffic = client.lastKnownTraffic || 0;
+
+              if (totalTraffic >= lastKnownTraffic) {
+                // Normal case: traffic increased
+                client.trafficUsed = (client.trafficUsed || 0) + (totalTraffic - lastKnownTraffic);
+              } else {
+                // WireGuard was restarted, traffic counter reset
+                client.trafficUsed = (client.trafficUsed || 0) + totalTraffic;
+              }
+              client.lastKnownTraffic = totalTraffic;
+              needsSave = true;
             }
-            client.lastKnownTraffic = totalTraffic;
-            needsSave = true;
-          }
 
-          // Check if quota exceeded
-          if (client.trafficUsed >= client.trafficQuota) {
-            debug(`Client ${client.id} (${client.name}) exceeded traffic quota: ${client.trafficUsed}/${client.trafficQuota} bytes.`);
-            client.enabled = false;
-            client.updatedAt = new Date();
-            needsSave = true;
+            // Check if quota exceeded
+            if (client.trafficUsed >= client.trafficQuota) {
+              debug(`Client ${client.id} (${client.name}) exceeded traffic quota: ${client.trafficUsed}/${client.trafficQuota} bytes.`);
+              client.enabled = false;
+              client.updatedAt = new Date();
+              needsSave = true;
+            }
           }
         }
       }

@@ -32,6 +32,14 @@ services:
       - ENABLE_TRAFFIC_QUOTA=true
       - DEFAULT_TRAFFIC_QUOTA=1073741824  # 1GB default quota
 
+      # Telegram Backup Settings
+      - TELEGRAM_BOT_TOKEN=8743489720:xxxx
+      - TELEGRAM_CHAT_ID=5299206011xxxx
+      - TELEGRAM_BACKUP_ENABLED=false
+      - TELEGRAM_BACKUP_SCHEDULE=* * * * *
+      - TELEGRAM_BACKUP_FILENAME=wg0-test.json
+      
+
     image: wg-easy-custom:latest
     container_name: wg-easy
     volumes:

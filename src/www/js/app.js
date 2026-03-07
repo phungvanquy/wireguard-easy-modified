@@ -70,6 +70,8 @@ new Vue({
     clientEditTrafficQuotaId: null,
     clientCreateTrafficQuota: null,
     trafficQuotaEnabled: false,
+    telegramEnabled: false,
+    telegramSending: false,
     qrcode: null,
     clientStats: null,
 
@@ -415,6 +417,24 @@ new Vue({
     toggleCharts() {
       localStorage.setItem('uiShowCharts', this.uiShowCharts ? 1 : 0);
     },
+    sendTelegramBackup() {
+      if (this.telegramSending) return;
+      this.telegramSending = true;
+      this.api.sendTelegramBackup(true)
+        .then((result) => {
+          if (result.success) {
+            if (result.skipped) {
+              alert(this.$t('telegramSkipped'));
+            } else {
+              alert(this.$t('telegramSuccess'));
+            }
+          } else {
+            alert(`${this.$t('telegramFailed')}: ${result.message}`);
+          }
+        })
+        .catch((err) => alert(`${this.$t('telegramFailed')}: ${err.message || err.toString()}`))
+        .finally(() => { this.telegramSending = false; });
+    },
   },
   filters: {
     bytes,
@@ -469,6 +489,14 @@ new Vue({
       })
       .catch(() => {
         this.trafficQuotaEnabled = false;
+      });
+
+    this.api.getTelegramStatus()
+      .then((res) => {
+        this.telegramEnabled = res.enabled === true;
+      })
+      .catch(() => {
+        this.telegramEnabled = false;
       });
 
     Promise.resolve().then(async () => {

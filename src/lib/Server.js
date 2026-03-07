@@ -23,6 +23,7 @@ const {
 } = require('h3');
 
 const WireGuard = require('../services/WireGuard');
+const Telegram = require('../services/Telegram');
 
 const {
   PORT,
@@ -309,6 +310,36 @@ module.exports = class Server {
         const { file } = await readBody(event);
         await WireGuard.restoreConfiguration(file);
         return { success: true };
+      }));
+
+    // Telegram backup endpoints
+    const router4 = createRouter();
+    app.use(router4);
+
+    router4
+      .get('/api/telegram/status', defineEventHandler(async (event) => {
+        setHeader(event, 'Content-Type', 'application/json');
+        return Telegram.getStatus();
+      }))
+      .post('/api/telegram/test-connection', defineEventHandler(async (event) => {
+        setHeader(event, 'Content-Type', 'application/json');
+        try {
+          const result = await Telegram.testConnection();
+          return result;
+        } catch (error) {
+          return { success: false, message: error.message };
+        }
+      }))
+      .post('/api/telegram/send-backup', defineEventHandler(async (event) => {
+        setHeader(event, 'Content-Type', 'application/json');
+        try {
+          const body = await readBody(event).catch(() => ({}));
+          const forceUpload = body.force === true;
+          const result = await Telegram.sendBackupFile(forceUpload);
+          return result;
+        } catch (error) {
+          return { success: false, message: error.message };
+        }
       }));
 
     // Static assets

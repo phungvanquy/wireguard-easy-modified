@@ -46,3 +46,10 @@ module.exports.ENABLE_TRAFFIC_QUOTA = process.env.ENABLE_TRAFFIC_QUOTA === 'true
 // DEFAULT_TRAFFIC_QUOTA: Default quota in bytes for new clients (default: 0 = unlimited)
 // Examples: 1073741824 (1GB), 10737418240 (10GB), 107374182400 (100GB)
 module.exports.DEFAULT_TRAFFIC_QUOTA = parseInt(process.env.DEFAULT_TRAFFIC_QUOTA, 10) || 0;
+
+// Telegram Backup Configuration
+module.exports.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+module.exports.TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+module.exports.TELEGRAM_BACKUP_ENABLED = process.env.TELEGRAM_BACKUP_ENABLED || 'false';
+module.exports.TELEGRAM_BACKUP_SCHEDULE = process.env.TELEGRAM_BACKUP_SCHEDULE || '0 0 * * *';
+module.exports.TELEGRAM_BACKUP_FILENAME = process.env.TELEGRAM_BACKUP_FILENAME || 'wg0.json';
