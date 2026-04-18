@@ -55,6 +55,7 @@ const messages = { // eslint-disable-line no-unused-vars
     telegramSuccess: 'Backup sent to Telegram successfully!',
     telegramFailed: 'Failed to send backup to Telegram',
     telegramSkipped: 'Backup not sent: file has not changed',
+    sortClients: 'Sort',
   },
   ua: {
     name: 'Ім`я',

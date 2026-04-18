@@ -57,6 +57,13 @@ class API {
     });
   }
 
+  async getSortClientsEnabled() {
+    return this.call({
+      method: 'get',
+      path: '/ui-sort-clients',
+    });
+  }
+
   async getSession() {
     return this.call({
       method: 'get',

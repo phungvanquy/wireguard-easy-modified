@@ -34,6 +34,7 @@ const {
   LANG,
   UI_TRAFFIC_STATS,
   UI_CHART_TYPE,
+  UI_ENABLE_SORT_CLIENTS,
   ENABLE_TRAFFIC_QUOTA,
 } = require('../config');
 
@@ -93,6 +94,11 @@ module.exports = class Server {
       .get('/api/ui-chart-type', defineEventHandler((event) => {
         setHeader(event, 'Content-Type', 'application/json');
         return `"${UI_CHART_TYPE}"`;
+      }))
+
+      .get('/api/ui-sort-clients', defineEventHandler((event) => {
+        setHeader(event, 'Content-Type', 'application/json');
+        return `"${UI_ENABLE_SORT_CLIENTS}"`;
       }))
 
       .get('/api/traffic-quota-enabled', defineEventHandler((event) => {

@@ -38,7 +38,10 @@ services:
       - TELEGRAM_BACKUP_ENABLED=false
       - TELEGRAM_BACKUP_SCHEDULE=* * * * *
       - TELEGRAM_BACKUP_FILENAME=wg0-test.json
-      
+
+      # Sort Clients Settings
+      - UI_ENABLE_SORT_CLIENTS=true
+
 
     image: wg-easy-custom:latest
     container_name: wg-easy

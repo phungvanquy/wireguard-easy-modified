@@ -79,6 +79,8 @@ new Vue({
     latestRelease: null,
 
     uiTrafficStats: false,
+    uiSortClients: false,
+    clientSortAsc: localStorage.getItem('clientSortAsc') === '1',
 
     uiChartType: 0,
     uiShowCharts: localStorage.getItem('uiShowCharts') === '1',
@@ -417,6 +419,10 @@ new Vue({
     toggleCharts() {
       localStorage.setItem('uiShowCharts', this.uiShowCharts ? 1 : 0);
     },
+    toggleSortClients() {
+      this.clientSortAsc = !this.clientSortAsc;
+      localStorage.setItem('clientSortAsc', this.clientSortAsc ? '1' : '0');
+    },
     sendTelegramBackup() {
       if (this.telegramSending) return;
       this.telegramSending = true;
@@ -499,6 +505,14 @@ new Vue({
         this.telegramEnabled = false;
       });
 
+    this.api.getSortClientsEnabled()
+      .then((res) => {
+        this.uiSortClients = res === 'true';
+      })
+      .catch(() => {
+        this.uiSortClients = false;
+      });
+
     Promise.resolve().then(async () => {
       const lang = await this.api.getLang();
       if (lang !== localStorage.getItem('lang') && i18n.availableLocales.includes(lang)) {
@@ -554,6 +568,16 @@ new Vue({
         return this.prefersDarkScheme.matches ? 'dark' : 'light';
       }
       return this.uiTheme;
+    },
+    sortedClients() {
+      if (!this.clients) return null;
+      if (!this.uiSortClients) return this.clients;
+      const sorted = [...this.clients].sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+      return this.clientSortAsc ? sorted : sorted.reverse();
     },
   },
 });
