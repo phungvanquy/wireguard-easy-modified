@@ -420,21 +420,17 @@ new Vue({
       // Empty -> 'PERMANENT' (null on the server). Otherwise parse flexible
       // input (date-only becomes next-day 03:00) into an ISO string.
       const trimmed = (expiresAt || '').trim();
-      if (trimmed === '') {
-        this.clientEditExpiresAt = null;
-        this.clientEditExpiresAtId = null;
-        return this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: 'PERMANENT' })
-          .catch((err) => alert(err.message || err.toString()))
-          .finally(() => this.refresh().catch(console.error));
-      }
-      const expiresAtISO = this.parseExpiresAt(trimmed);
-      if (expiresAtISO === undefined) {
-        alert(this.$t('invalidDate'));
-        return undefined;
+      let payload = 'PERMANENT';
+      if (trimmed !== '') {
+        payload = this.parseExpiresAt(trimmed);
+        if (payload === undefined) {
+          alert(this.$t('invalidDate'));
+          return undefined;
+        }
       }
       this.clientEditExpiresAt = null;
       this.clientEditExpiresAtId = null;
-      return this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: expiresAtISO })
+      return this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: payload })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
     },
