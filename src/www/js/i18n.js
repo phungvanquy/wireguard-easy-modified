@@ -39,6 +39,8 @@ const messages = { // eslint-disable-line no-unused-vars
     permanent: 'Permanent',
     optional: 'optional',
     save: 'Save',
+    dateHint: 'e.g. 01/08/2026 (or leave empty for permanent)',
+    invalidDate: 'Invalid date. Use dd/mm/yyyy or yyyy-mm-dd.',
     // Traffic quota translations
     trafficQuota: 'Traffic Quota',
     trafficUsed: 'Traffic Used',
@@ -401,6 +403,13 @@ const messages = { // eslint-disable-line no-unused-vars
     downloadConfig: 'Tải xuống cấu hình',
     madeBy: 'Được tạo bởi',
     donate: 'Ủng hộ',
+    expiresAt: 'Ngày hết hạn',
+    expires: 'Hết hạn',
+    permanent: 'Vĩnh viễn',
+    optional: 'không bắt buộc',
+    save: 'Lưu',
+    dateHint: 'VD: 01/08/2026 (để trống nếu vĩnh viễn)',
+    invalidDate: 'Ngày không hợp lệ. Dùng dd/mm/yyyy hoặc yyyy-mm-dd.',
   },
   nl: {
     name: 'Naam',

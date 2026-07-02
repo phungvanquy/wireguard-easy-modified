@@ -197,7 +197,74 @@ new Vue({
       const day = String(date.getDate()).padStart(2, '0');
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
+    },
+    // Parse a user-typed/pasted expiration value into an ISO string (or null).
+    // Accepts date-only (dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, yyyy/mm/dd) and
+    // full date+time (same separators, with " HH:mm" or "THH:mm"). Returns
+    // undefined when the input is non-empty but unparseable, so callers can
+    // reject it while keeping empty === permanent.
+    parseExpiresAt(input) {
+      if (input == null) return null;
+      const raw = String(input).trim();
+      if (raw === '') return null;
+
+      const dateTimeSplit = raw.split(/[T ]+/);
+      const datePart = dateTimeSplit[0];
+      const timePart = dateTimeSplit[1];
+
+      let year;
+      let month;
+      let day;
+
+      const isoMatch = datePart.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      const dmyMatch = datePart.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+      if (isoMatch) {
+        year = Number(isoMatch[1]);
+        month = Number(isoMatch[2]);
+        day = Number(isoMatch[3]);
+      } else if (dmyMatch) {
+        day = Number(dmyMatch[1]);
+        month = Number(dmyMatch[2]);
+        year = Number(dmyMatch[3]);
+      } else {
+        return undefined;
+      }
+
+      let hours = 0;
+      let minutes = 0;
+      let seconds = 0;
+      let hasTime = false;
+      if (timePart) {
+        const timeMatch = timePart.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+        if (!timeMatch) return undefined;
+        hours = Number(timeMatch[1]);
+        minutes = Number(timeMatch[2]);
+        seconds = timeMatch[3] ? Number(timeMatch[3]) : 0;
+        hasTime = true;
+      }
+
+      const date = new Date(year, month - 1, day, hours, minutes, seconds, 0);
+      // Reject rolled-over values (e.g. 31/02/2026 -> 03/03/2026).
+      if (
+        date.getFullYear() !== year
+        || date.getMonth() !== month - 1
+        || date.getDate() !== day
+        || date.getHours() !== hours
+        || date.getMinutes() !== minutes
+      ) {
+        return undefined;
+      }
+
+      // Date-only input: match the legacy UI behaviour and expire at 03:00
+      // (local time) on the following day, so a code chosen for "01/08" stays
+      // valid through all of 01/08 in the local timezone.
+      if (!hasTime) {
+        date.setDate(date.getDate() + 1);
+        date.setHours(3, 0, 0, 0);
+      }
+
+      return date.toISOString();
     },
     async refresh({
       updateCharts = false,
@@ -306,7 +373,11 @@ new Vue({
       const name = this.clientCreateName;
       if (!name) return;
 
-      const expiresAt = this.clientCreateExpiresAt ? new Date(this.clientCreateExpiresAt).toISOString() : null;
+      const expiresAt = this.parseExpiresAt(this.clientCreateExpiresAt);
+      if (expiresAt === undefined) {
+        alert(this.$t('invalidDate'));
+        return;
+      }
 
       // Convert GB to bytes for traffic quota
       let trafficQuota = null;
@@ -317,6 +388,7 @@ new Vue({
       this.api.createClient({ name, expiresAt, trafficQuota })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
+      this.clientCreate = null;
     },
     bytes,
     deleteClient(client) {
@@ -345,10 +417,24 @@ new Vue({
         .finally(() => this.refresh().catch(console.error));
     },
     updateClientExpiresAt(client, expiresAt) {
-      // If expiresAt is empty string, send 'PERMANENT' to indicate permanent (null)
-      // Otherwise convert to ISO string
-      const expiresAtISO = expiresAt ? new Date(expiresAt).toISOString() : 'PERMANENT';
-      this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: expiresAtISO })
+      // Empty -> 'PERMANENT' (null on the server). Otherwise parse flexible
+      // input (date-only becomes next-day 03:00) into an ISO string.
+      const trimmed = (expiresAt || '').trim();
+      if (trimmed === '') {
+        this.clientEditExpiresAt = null;
+        this.clientEditExpiresAtId = null;
+        return this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: 'PERMANENT' })
+          .catch((err) => alert(err.message || err.toString()))
+          .finally(() => this.refresh().catch(console.error));
+      }
+      const expiresAtISO = this.parseExpiresAt(trimmed);
+      if (expiresAtISO === undefined) {
+        alert(this.$t('invalidDate'));
+        return undefined;
+      }
+      this.clientEditExpiresAt = null;
+      this.clientEditExpiresAtId = null;
+      return this.api.updateClientExpiresAt({ clientId: client.id, expiresAt: expiresAtISO })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
     },

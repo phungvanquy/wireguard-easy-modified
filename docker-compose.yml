@@ -43,7 +43,7 @@ services:
       - UI_ENABLE_SORT_CLIENTS=true
 
 
-    image: wg-easy-custom:latest
+    image: phungvanquy/wireguard:latest
     container_name: wg-easy
     volumes:
       - etc_wireguard:/etc/wireguard
