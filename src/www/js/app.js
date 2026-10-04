@@ -447,7 +447,7 @@ new Vue({
         .finally(() => this.refresh().catch(console.error));
     },
     resetClientTraffic(client) {
-      if (!confirm(this.$t('confirmResetTraffic'))) return;
+      if (!window.confirm(this.$t('confirmResetTraffic'))) return;
       this.api.resetClientTraffic({ clientId: client.id })
         .catch((err) => alert(err.message || err.toString()))
         .finally(() => this.refresh().catch(console.error));
@@ -521,7 +521,9 @@ new Vue({
           }
         })
         .catch((err) => alert(`${this.$t('telegramFailed')}: ${err.message || err.toString()}`))
-        .finally(() => { this.telegramSending = false; });
+        .finally(() => {
+          this.telegramSending = false;
+        });
     },
   },
   filters: {

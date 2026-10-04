@@ -25,6 +25,7 @@ const BACKUP_FILE_PATH = `${WG_PATH}wg0.json`;
 const HASH_FILE_PATH = `${WG_PATH}.telegram_backup_hash`;
 
 module.exports = class Telegram {
+
   constructor() {
     this.bot = null;
     this.chatId = null;
@@ -102,7 +103,7 @@ module.exports = class Telegram {
         tomorrow.setHours(0, 0, 0, 0);
         this.nextScheduledBackup = tomorrow.getTime();
       } else if (this.schedule.startsWith('0 */')) {
-        const hours = parseInt(this.schedule.split('*/')[1].split(' ')[0]);
+        const hours = parseInt(this.schedule.split('*/')[1].split(' ')[0], 10);
         this.nextScheduledBackup = now + (hours * 60 * 60 * 1000);
       } else {
         this.nextScheduledBackup = now + (60 * 60 * 1000);
@@ -148,7 +149,7 @@ module.exports = class Telegram {
     const timeSinceLastMessage = now - this.lastMessageTime;
     if (timeSinceLastMessage < 1000) {
       const waitTime = 1000 - timeSinceLastMessage;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
     this.lastMessageTime = Date.now();
   }
@@ -236,5 +237,5 @@ module.exports = class Telegram {
       debug('Cron task stopped');
     }
   }
-};
 
+};

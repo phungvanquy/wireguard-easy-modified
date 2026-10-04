@@ -518,8 +518,8 @@ Endpoint = ${WG_HOST}:${WG_CONFIG_PORT}`;
       for (const client of configClients) {
         if (client.enabled !== true) continue;
         if (
-          client.expiresAt !== null &&
-          new Date() > new Date(client.expiresAt)
+          client.expiresAt !== null
+          && new Date() > new Date(client.expiresAt)
         ) {
           debug(`Client ${client.id} (${client.name}) expired.`);
           client.enabled = false;

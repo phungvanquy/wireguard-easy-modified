@@ -1,1 +1,9 @@
-/src/node_modules
+.git
+.github
+**/node_modules
+**/.env
+**/.env.*
+**/npm-debug.log*
+/config
+/wg0.conf
+/wg0.json

@@ -1,6 +1,6 @@
 # WireGuard Easy (Custom Fork)
 
-Docker Image: `phungvanquy/wireguard`
+Docker Image: `ghcr.io/phungvanquy/wireguard-easy-modified:latest`
 
 Easy WireGuard VPN server with a web-based management UI.
 
@@ -45,7 +45,7 @@ docker run -d \
   --sysctl="net.ipv4.conf.all.src_valid_mark=1" \
   --sysctl="net.ipv4.ip_forward=1" \
   --restart unless-stopped \
-  phungvanquy/wireguard
+  ghcr.io/phungvanquy/wireguard-easy-modified:latest
 ```
 
 > 💡 Replace `YOUR_SERVER_IP` with your WAN IP or Dynamic DNS hostname.
@@ -61,6 +61,58 @@ Download [`docker-compose.yml`](docker-compose.yml), adjust the environment vari
 ```bash
 docker compose up -d
 ```
+
+## Builds and releases
+
+GitHub Actions runs lint and builds and smoke-tests the container on Linux AMD64
+and ARM64. Pull requests run these checks without publishing. Images use Node.js
+24, and the stylesheet is rebuilt from the current UI during the Docker build.
+
+Successful pushes to `main` publish
+`ghcr.io/phungvanquy/wireguard-easy-modified:edge` and `sha-<full-commit-sha>`.
+To publish a release, push a version tag on the commit you want to release:
+
+```bash
+git tag -a v1.0.1 -m "Release v1.0.1"
+git push origin v1.0.1
+```
+
+After all checks pass, the workflow publishes the image and creates a GitHub
+Release with generated release notes. Stable tags such as `v1.0.1` publish image
+tags `v1.0.1`, `1.0.1`, `1.0`, `1`, and `latest`. The `0` major alias is omitted for
+`v0.x.y` releases. `latest` tracks the most recently published stable version tag;
+publish stable versions in increasing order.
+
+Prerelease tags such as `v1.0.2-rc.1` create a GitHub prerelease and publish only
+their full version tags and commit tag, leaving `latest` and the stable aliases
+unchanged. Tags must use `vMAJOR.MINOR.PATCH`, optionally followed by a SemVer
+prerelease suffix; build metadata (`+...`) is not supported.
+
+Enable GitHub Actions in the fork. Following GitHub's
+[container publishing setup](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images),
+the workflow uses the repository's built-in
+`GITHUB_TOKEN` with `packages: write` for images and `contents: write` for releases;
+no Docker Hub credentials or personal access token are needed. After the first
+publish, set the package visibility to **Public** in GitHub Packages if you want
+unauthenticated pulls. The image name follows the repository owner and name, so
+another fork should update the image references in its deployment examples.
+
+The first `latest` image is published with the first stable release. Use `:edge`
+to try the `main` build before then. The **Run workflow** button also runs checks;
+when run on `main`, it republishes `edge` without creating a release.
+
+To run the same checks locally on an AMD64 or ARM64 Linux host with WireGuard
+kernel support:
+
+```bash
+npm --prefix src ci
+npm --prefix src run lint
+docker build -t wg-easy:ci .
+bash scripts/smoke-test.sh wg-easy:ci
+```
+
+The smoke test starts an isolated container and checks WireGuard startup, Web UI
+assets, authentication, client management, and backup/restore.
 
 ## Options
 

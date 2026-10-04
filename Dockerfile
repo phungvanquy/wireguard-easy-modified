@@ -1,20 +1,21 @@
-# As a workaround we have to build on nodejs 18
-# nodejs 20 hangs on build with armv6/armv7
-FROM docker.io/library/node:lts-alpine AS build_node_modules
+ARG NODE_VERSION=24
+FROM docker.io/library/node:${NODE_VERSION}-alpine AS build_node_modules
 
-# Update npm to latest
-RUN npm install -g npm@latest
-
-# Copy Web UI
-COPY src /app
 WORKDIR /app
-RUN npm ci --omit=dev &&\
+COPY src/package.json src/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+# Generate the stylesheet from the current UI before removing build tools.
+COPY src /app
+RUN npm run buildcss && \
+    npm prune --omit=dev --no-audit --no-fund && \
     mv node_modules /node_modules
 
 # Copy build result to a new image.
 # This saves a lot of disk space.
-FROM docker.io/library/node:lts-alpine
-HEALTHCHECK CMD /usr/bin/timeout 5s /bin/sh -c "/usr/bin/wg show | /bin/grep -q interface || exit 1" --interval=1m --timeout=5s --retries=3
+FROM docker.io/library/node:${NODE_VERSION}-alpine
+HEALTHCHECK --interval=1m --timeout=5s --start-period=10s --retries=3 \
+    CMD wg show wg0 > /dev/null 2>&1 || exit 1
 COPY --from=build_node_modules /app /app
 
 # Move node_modules one directory up, so during development
@@ -32,17 +33,22 @@ RUN chmod +x /bin/wgpw
 
 # Install Linux packages
 RUN apk add --no-cache \
+    bash \
     dpkg \
     dumb-init \
     iptables \
     iptables-legacy \
     wireguard-tools
 
+RUN mkdir -p /etc/wireguard
+
 # Use iptables-legacy
 RUN update-alternatives --install /usr/sbin/iptables iptables /usr/sbin/iptables-legacy 10 --slave /usr/sbin/iptables-restore iptables-restore /usr/sbin/iptables-legacy-restore --slave /usr/sbin/iptables-save iptables-save /usr/sbin/iptables-legacy-save
 
 # Set Environment
 ENV DEBUG=Server,WireGuard
+ENV NODE_ENV=production
+EXPOSE 51820/udp 51821/tcp
 
 # Run Web UI
 WORKDIR /app

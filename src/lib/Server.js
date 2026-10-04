@@ -159,14 +159,14 @@ module.exports = class Server {
           if (isPasswordValid(req.headers['authorization'])) {
             return next();
           }
-          return res.status(401).json({
+          return res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({
             error: 'Incorrect Password',
-          });
+          }));
         }
 
-        return res.status(401).json({
+        return res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({
           error: 'Not Logged In',
-        });
+        }));
       }),
     );
 
